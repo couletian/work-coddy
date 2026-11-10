@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WorkBuddy IDE</title>
+<style>
+:root{--bg:#1a1b1e;--panel:#222428;--panel2:#2a2d33;--line:#373a41;--fg:#d7dae0;--muted:#8b909a;--accent:#4a9eff;--user:#2b4a6f;--tool:#3a3320;--dirty:#e0a458}
+*{box-sizing:border-box;margin:0;padding:0}
+body{height:100vh;overflow:hidden;background:var(--bg);color:var(--fg);font:13px/1.55 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:3px 9px;cursor:pointer;font-size:11.5px;white-space:nowrap}
+button:hover{border-color:var(--accent)}
+input,textarea{background:#15161a;color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:5px 9px;font:12px/1.5 Consolas,"Microsoft YaHei",monospace;outline:none}
+input:focus,textarea:focus{border-color:var(--accent)}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 380px;height:100vh;overflow:hidden}
+.left{display:grid;grid-template-rows:calc(100vh - 212px) 186px 26px;min-width:0;min-height:0;overflow:hidden}
+.workbench{display:grid;grid-template-columns:206px minmax(0,1fr);height:100%;min-height:0;overflow:hidden}
+.tree{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:6px 0;min-height:0}
+.tree-title{padding:4px 10px 8px;color:var(--muted);font-size:11px;display:flex;align-items:center;gap:6px}
+.tree-title span{flex:1}
+.newfile{display:none;flex-direction:column;gap:5px;padding:7px 8px;background:var(--panel2);border-bottom:1px solid var(--line)}
+.newfile.on{display:flex}
+.newfile input{width:100%}
+.newfile .row{display:flex;gap:5px;justify-content:flex-end}
+.item{padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;font-size:12px}
+.item:hover{background:var(--panel2)}
+.item.dir{color:#9db8d8}
+.item.active{background:#2d4159;color:#fff}
+.editor-wrap{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;background:var(--bg)}
+.tabs{height:32px;display:flex;align-items:stretch;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;flex:none}
+.tab{display:flex;align-items:center;gap:6px;padding:0 9px;border-right:1px solid var(--line);cursor:pointer;font-size:11.5px;color:var(--muted);white-space:nowrap;max-width:180px}
+.tab.active{background:var(--bg);color:var(--fg)}
+.tab .x{opacity:.5;font-size:13px}
+.tab .x:hover{opacity:1;color:#e88}
+.tab .dot{width:6px;height:6px;border-radius:50%;background:var(--dirty)}
+.bar{height:30px;display:flex;align-items:center;gap:7px;padding:0 9px;background:var(--bg);border-bottom:1px solid var(--line);font-size:11.5px;flex:none}
+.bar .path{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+#editor{flex:1;min-height:0;overflow:hidden}
+.bottom{display:flex;flex-direction:column;background:var(--panel);border-top:1px solid var(--line);min-height:0;overflow:hidden}
+.bottom-tabs{display:flex;align-items:center;gap:4px;padding:4px 8px;border-bottom:1px solid var(--line);flex:none}
+.bottom-tab{padding:2px 9px;font-size:11.5px;color:var(--muted);cursor:pointer;border-radius:3px}
+.bottom-tab.on{background:var(--panel2);color:var(--fg)}
+.bottom-tabs .sp{flex:1}
+.pane{flex:1;min-height:0;display:none;flex-direction:column;overflow:hidden}
+.pane.on{display:flex}
+.term-line{display:flex;align-items:center;gap:7px;padding:5px 9px;flex:none}
+#cmd{flex:1}
+#termout{flex:1;overflow:auto;padding:6px 11px;white-space:pre-wrap;word-break:break-all;font:12px/1.5 Consolas,monospace;color:#c8d0da}
+.search-line{display:flex;align-items:center;gap:7px;padding:5px 9px;flex:none}
+#searchInput{flex:1}
+#searchOut{flex:1;overflow:auto;font:12px/1.6 Consolas,monospace}
+.srow{padding:2px 11px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srow:hover{background:var(--panel2)}
+.srow b{color:var(--accent);font-weight:400}
+.status{display:flex;align-items:center;gap:14px;padding:0 10px;background:#121a24;border-top:1px solid var(--line);font-size:11px;color:var(--muted);overflow:hidden;white-space:nowrap}
+.status .ok{color:#6cc79a}
+.status .bad{color:#e0a458}
+.status .sp{flex:1}
+.right{display:flex;flex-direction:column;background:var(--panel);border-left:1px solid var(--line);min-width:0;overflow:hidden}
+.head{padding:9px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:7px;flex:none}
+.head strong{font-size:13px;font-weight:500}
+.dot{width:7px;height:7px;border-radius:50%;background:#6b7078;flex:none}
+.dot.on{background:#4caf7d}
+#chat{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:9px;min-height:0}
+.msg{max-width:100%;padding:7px 10px;border-radius:7px;white-space:pre-wrap;word-break:break-word;font-size:12.5px;line-height:1.6}
+.msg.user{background:var(--user);align-self:flex-end}
+.msg.agent{background:var(--panel2);align-self:flex-start}
+.msg.thought{background:transparent;color:var(--muted);font-size:11.5px;border-left:2px solid var(--line);align-self:flex-start;padding:3px 9px}
+.msg.tool{background:var(--tool);color:#d8c48d;align-self:flex-start;font:11.5px/1.5 Consolas,monospace}
+.msg.hist{opacity:.62}
+.compose{padding:9px;border-top:1px solid var(--line);flex:none}
+#input{width:100%;height:66px;resize:none}
+.compose .row{display:flex;justify-content:space-between;align-items:center;margin-top:6px;color:var(--muted);font-size:11px}
+.palette{position:absolute;top:60px;left:50%;transform:translateX(-50%);width:460px;background:var(--panel);border:1px solid var(--accent);border-radius:7px;box-shadow:0 8px 30px #0008;z-index:20;display:none;overflow:hidden}
+.palette.on{display:block}
+.palette input{width:100%;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:9px 12px;font-size:13px}
+#paletteList{max-height:280px;overflow:auto}
+.pitem{padding:5px 12px;cursor:pointer;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pitem:hover,.pitem.sel{background:#2d4159}
+.toast{position:absolute;bottom:220px;left:50%;transform:translateX(-50%);background:#2d4159;color:#fff;padding:6px 14px;border-radius:5px;font-size:12px;z-index:30;display:none}
+.bp-glyph{background:#e05555;width:10px!important;height:10px!important;border-radius:50%;margin-left:6px;margin-top:5px}
+.dbg-line{background:#4a3a1a}
+.dbg-bar{display:flex;align-items:center;gap:5px;padding:5px 9px;flex:none;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.dbg-cols{display:grid;grid-template-columns:1fr 1fr 1.4fr;flex:1;min-height:0;overflow:hidden}
+.dbg-col{display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--line);overflow:hidden}
+.dbg-col h4{padding:3px 9px;font-size:11px;font-weight:500;color:var(--muted);background:var(--panel2);flex:none}
+.dbg-col .list{flex:1;overflow:auto;font:11.5px/1.6 Consolas,monospace;padding:4px 9px;white-space:pre-wrap;word-break:break-all}
+.plugin-row{padding:5px 11px;border-bottom:1px solid var(--line);font-size:12px}
+.plugin-row b{font-weight:500;color:var(--accent)}
+.plugin-cmd{padding:2px 18px;cursor:pointer;font-size:11.5px;color:var(--muted)}
+.plugin-cmd:hover{background:var(--panel2);color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="left">
+    <div class="workbench">
+      <div class="tree">
+        <div class="tree-title"><span>工作区</span><button id="newFile" title="新建文件">+</button><button id="reloadTree">刷新</button></div>
+        <div class="newfile" id="newFileBox">
+          <input id="newFilePath" placeholder="相对路径，如 src/main.js">
+          <div class="row"><button id="newFileOk">创建</button><button id="newFileCancel">取消</button></div>
+        </div>
+        <div id="files"></div>
+      </div>
+      <div class="editor-wrap">
+        <div class="tabs" id="tabs"></div>
+        <div class="bar">
+          <span class="path" id="curPath">未打开文件</span>
+          <button id="runFile">运行</button>
+          <button id="save">保存 Ctrl+S</button>
+          <button id="reloadFile">重载</button>
+        </div>
+        <div id="editor"></div>
+      </div>
+    </div>
+    <div class="bottom">
+      <div class="bottom-tabs">
+        <div class="bottom-tab on" data-pane="term">终端</div>
+        <div class="bottom-tab" data-pane="search">搜索</div>
+        <div class="bottom-tab" data-pane="debug">调试</div>
+        <div class="bottom-tab" data-pane="plugins">插件</div>
+        <span class="sp"></span>
+        <button id="gitStatus">Git 状态</button>
+        <button id="clearTerm">清屏</button>
+      </div>
+      <div class="pane on" id="paneTerm">
+        <div class="term-line"><input id="cmd" placeholder="运行命令，↑↓ 可切换历史"><button id="run">运行</button></div>
+        <div id="termout"></div>
+      </div>
+      <div class="pane" id="paneSearch">
+        <div class="search-line"><input id="searchInput" placeholder="全局文本搜索，Ctrl+Shift+F"><button id="doSearch">搜索</button></div>
+        <div id="searchOut"></div>
+      </div>
+      <div class="pane" id="paneDebug">
+        <div class="dbg-bar">
+          <button id="dbgStart">启动调试 F5</button>
+          <button id="dbgContinue">继续</button>
+          <button id="dbgStep">单步 F10</button>
+          <button id="dbgInto">步入 F11</button>
+          <button id="dbgOut">步出</button>
+          <button id="dbgStop">停止</button>
+          <button id="dbgClearBp">清除断点</button>
+          <span id="dbgState" style="color:var(--muted);font-size:11px">未启动</span>
+        </div>
+        <div class="dbg-cols">
+          <div class="dbg-col"><h4>调用栈</h4><div class="list" id="dbgFrames"></div></div>
+          <div class="dbg-col"><h4>变量</h4><div class="list" id="dbgVars"></div></div>
+          <div class="dbg-col"><h4>调试控制台</h4><div class="list" id="dbgConsole"></div></div>
+        </div>
+      </div>
+      <div class="pane" id="panePlugins">
+        <div style="padding:5px 9px;font-size:11px;color:var(--muted);flex:none" id="pluginDir"></div>
+        <div style="flex:1;overflow:auto" id="pluginList"></div>
+        <div style="padding:5px 9px;font-size:11px;color:var(--muted);flex:none">把 .mjs 插件文件放入上述目录即可安装；Ctrl+Shift+P 调用命令</div>
+      </div>
+    </div>
+    <div class="status">
+      <span id="stAgent">Agent 未连接</span>
+      <span id="stFile">无文件</span>
+      <span id="stLang">—</span>
+      <span class="sp"></span>
+      <span id="stPos">行 1, 列 1</span>
+      <span id="stRoot"></span>
+    </div>
+  </div>
+  <div class="right">
+    <div class="head"><span class="dot" id="dot"></span><strong>Agent 对话</strong><span style="flex:1"></span><button id="syncHist">同步会话</button><button id="clearChat">清空</button></div>
+    <div id="chat"></div>
+    <div class="compose">
+      <textarea id="input" placeholder="向 WorkBuddy Agent 提问；它可直接读写当前工作区文件"></textarea>
+      <div class="row"><span>Enter 发送 · Shift+Enter 换行</span><button id="send">发送</button></div>
+    </div>
+  </div>
+</div>
+<div class="palette" id="palette"><input id="paletteInput" placeholder="按文件名快速打开…"><div id="paletteList"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+self.MonacoEnvironment={getWorkerUrl:function(){
+  var src="self.MonacoEnvironment={baseUrl:'"+location.origin+"/monaco/'};importScripts('"+location.origin+"/monaco/vs/base/worker/workerMain.js');";
+  return URL.createObjectURL(new Blob([src],{type:'text/javascript'}));
+}};
+</script>
+<script src="/monaco/vs/loader.js"></script>
+<script>
+var LANGS={js:'javascript',mjs:'javascript',cjs:'javascript',ts:'typescript',tsx:'typescript',jsx:'javascript',json:'json',html:'html',css:'css',scss:'scss',md:'markdown',py:'python',sh:'shell',bat:'bat',ps1:'powershell',yml:'yaml',yaml:'yaml',xml:'xml',sql:'sql',java:'java',c:'c',cpp:'cpp',h:'cpp',go:'go',rs:'rust',php:'php',lua:'lua',toml:'ini',vue:'html',svelte:'html',txt:'plaintext'};
+var RUN={js:'node',mjs:'node',cjs:'node',py:'python',ts:'npx tsx',tsx:'npx tsx',sh:'bash'};
+var files=[],tabs=new Map(),active=null,editor=null,hist=[],histIdx=0,bubbles=new Map();
+var breakpoints=new Map(),paletteMode='file',pSel=0,pList=[],pluginCmds=[],dbgDeco=[],curLineDeco=[];
+var treeItems=[],collapsed=new Set();
+function $(id){return document.getElementById(id);}
+function toast(t){var e=$('toast');e.textContent=t;e.style.display='block';setTimeout(function(){e.style.display='none';},2200);}
+function termOut(t){var o=$('termout');o.textContent+=t;o.scrollTop=o.scrollHeight;}
+function langOf(p){var e=p.split('.').pop().toLowerCase();return LANGS[e]||'plaintext';}
+function short(p){return p.split('/').pop();}
+
+async function loadTree(){
+  var d=await (await fetch('/api/tree')).json();
+  treeItems=d.items;
+  files=d.items.filter(function(x){return x.type==='file';});
+  $('stRoot').textContent=d.root;
+  renderTree();
+}
+function isHidden(p){
+  var parts=p.split('/');
+  for(var i=1;i<parts.length;i++)if(collapsed.has(parts.slice(0,i).join('/')))return true;
+  return false;
+}
+function renderTree(){
+  var box=$('files');box.innerHTML='';
+  treeItems.forEach(function(it){
+    if(isHidden(it.path))return;
+    var el=document.createElement('div');
+    el.className='item '+(it.type==='dir'?'dir':'file')+(it.path===active?' active':'');
+    el.style.paddingLeft=(8+it.depth*12)+'px';
+    el.textContent=(it.type==='dir'?(collapsed.has(it.path)?'▸ ':'▾ '):'')+it.name;
+    if(it.type==='dir')el.onclick=function(){
+      if(collapsed.has(it.path))collapsed.delete(it.path);else collapsed.add(it.path);
+      renderTree();
+    };
+    else el.onclick=function(){openFile(it.path);};
+    box.appendChild(el);
+  });
+}
+function renderTabs(){
+  var box=$('tabs');box.innerHTML='';
+  tabs.forEach(function(t,p){
+    var el=document.createElement('div');
+    el.className='tab'+(p===active?' active':'');
+    el.innerHTML='<span>'+short(p)+'</span>'+(t.dirty?'<span class="dot"></span>':'')+'<span class="x">×</span>';
+    el.onclick=function(e){if(e.target.classList.contains('x'))closeTab(p,t.armClose);else openFile(p);};
+    box.appendChild(el);
+  });
+}
+async function openFile(p){
+  if(tabs.has(p)){switchTo(p);return;}
+  var r=await fetch('/api/file?path='+encodeURIComponent(p));
+  if(!r.ok){toast('打开失败: '+p);return;}
+  var d=await r.json();
+  var m=monaco.editor.createModel(d.content,langOf(p),monaco.Uri.parse('file:///'+p));
+  var t={model:m,mtime:d.mtime,dirty:false,view:null};
+  m.onDidChangeContent(function(){t.dirty=true;renderTabs();});
+  tabs.set(p,t);switchTo(p);
+}
+function switchTo(p){
+  if(active&&tabs.has(active))tabs.get(active).view=editor.saveViewState();
+  active=p;var t=tabs.get(p);
+  editor.setModel(t.model);
+  if(t.view)editor.restoreViewState(t.view);
+  editor.focus();
+  $('curPath').textContent=p;
+  $('stFile').textContent=short(p);
+  $('stLang').textContent=langOf(p);
+  renderTabs();
+  renderTree();
+  renderBreakpointDeco();
+}
+function closeTab(p,force){
+  var t=tabs.get(p);if(!t)return;
+  if(t.dirty&&!force){toast(short(p)+' 有未保存修改，再点一次 × 强制关闭');t.armClose=true;return;}
+  t.model.dispose();tabs.delete(p);
+  if(active===p){active=null;var next=tabs.keys().next().value;if(next)switchTo(next);else{editor.setModel(null);$('curPath').textContent='未打开文件';$('stFile').textContent='无文件';}}
+  renderTabs();
+  renderTree();
+}
+async function save(){
+  if(!active)return;
+  var t=tabs.get(active);
+  var r=await fetch('/api/file',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({path:active,content:t.model.getValue()})});
+  var d=await r.json();
+  if(d.ok){t.dirty=false;t.mtime=d.mtime;renderTabs();toast('已保存 '+short(active));}
+  else toast('保存失败');
+}
+function reloadFile(){
+  if(!active)return;
+  var p=active;fetch('/api/file?path='+encodeURIComponent(p)).then(function(r){return r.json();}).then(function(d){
+    if(!d.content&&d.content!=='')return;
+    var t=tabs.get(p);t.model.setValue(d.content);t.mtime=d.mtime;t.dirty=false;renderTabs();
+  });
+}
+function runCurrent(){
+  if(!active){toast('请先打开文件');return;}
+  var ext=active.split('.').pop().toLowerCase(),cmd=RUN[ext];
+  if(!cmd){toast('该类型无默认运行命令，请在终端手动执行');return;}
+  showPane('term');$('cmd').value=cmd+' "'+active+'"';runCmd();
+}
+function showPane(name){
+  document.querySelectorAll('.bottom-tab').forEach(function(e){e.classList.toggle('on',e.dataset.pane===name);});
+  var ids={term:'paneTerm',search:'paneSearch',debug:'paneDebug',plugins:'panePlugins'};
+  document.querySelectorAll('.pane').forEach(function(e){e.classList.toggle('on',e.id===ids[name]);});
+  if(name==='plugins')loadPluginList();
+}
+async function runCmd(){
+  var el=$('cmd'),cmd=el.value.trim();if(!cmd)return;
+  hist.push(cmd);histIdx=hist.length;el.value='';termOut('\n$ '+cmd+'\n');
+  var r=await fetch('/api/exec',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({cmd:cmd})});
+  var reader=r.body.getReader(),dec=new TextDecoder(),buf='';
+  while(true){var x=await reader.read();if(x.done)break;buf+=dec.decode(x.value,{stream:true});
+    var parts=buf.split('\n\n');buf=parts.pop();
+    parts.forEach(function(p){var l=p.split('\n').find(function(z){return z.indexOf('data: ')===0;});if(!l)return;
+      try{var m=JSON.parse(l.slice(6));if(m.type==='out')termOut(m.text);if(m.type==='done')termOut('\n[退出码 '+m.code+']\n');}catch(e){}});
+  }
+}
+async function doSearch(){
+  var q=$('searchInput').value.trim();if(!q)return;
+  var d=await (await fetch('/api/search?q='+encodeURIComponent(q))).json();
+  var box=$('searchOut');box.innerHTML='';
+  if(!d.items.length){box.innerHTML='<div class="srow">无匹配结果</div>';return;}
+  d.items.forEach(function(it){
+    var el=document.createElement('div');el.className='srow';
+    el.innerHTML='<b>'+it.path+':'+it.line+'</b>  '+escapeHtml(it.text);
+    el.onclick=function(){openFile(it.path).then(function(){editor.revealLineInCenter(it.line);editor.setPosition({lineNumber:it.line,column:1});editor.focus();});};
+    box.appendChild(el);
+  });
+}
+function escapeHtml(s){return s.replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+
+/* ---- 图形断点调试 ---- */
+function bpFor(p){if(!breakpoints.has(p))breakpoints.set(p,new Set());return breakpoints.get(p);}
+function renderBreakpointDeco(){
+  if(!editor||!active||!tabs.has(active))return;
+  var m=tabs.get(active).model,lines=[...bpFor(active)];
+  dbgDeco=m.deltaDecorations(dbgDeco,lines.map(function(l){
+    return {range:new monaco.Range(l,1,l,1),options:{glyphMarginClassName:'bp-glyph',glyphMarginHoverMessage:{value:'断点 · 第 '+l+' 行'}}};
+  }));
+}
+function syncBreakpoints(){
+  if(!active)return;
+  fetch('/api/debug/breakpoints',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({path:active,lines:[...bpFor(active)]})}).catch(function(){});
+}
+function toggleBreakpoint(line){
+  if(!active)return;
+  var s=bpFor(active);if(s.has(line))s.delete(line);else s.add(line);
+  renderBreakpointDeco();syncBreakpoints();
+}
+function dbgPost(p,b){
+  return fetch('/api/debug/'+p,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})}).then(function(r){return r.json();});
+}
+function dbgStart(){
+  if(!active){toast('请先打开 .js / .mjs / .cjs 文件');return;}
+  dbgPost('start',{path:active}).then(function(d){if(d.error)toast(d.error);else{showPane('debug');toast('调试已启动');}});
+}
+function dbgAction(a){dbgPost('action',{action:a}).then(function(d){if(d.error)toast(d.error);});}
+function dbgStop(){dbgPost('stop',{}).then(function(){$('dbgState').textContent='未启动';});}
+function showCurrentLine(line){
+  if(!editor||!active||!tabs.has(active))return;
+  var m=tabs.get(active).model;
+  curLineDeco=m.deltaDecorations(curLineDeco,line?[{range:new monaco.Range(line,1,line,1),options:{isWholeLine:true,className:'dbg-line'}}]:[]);
+  if(line)editor.revealLineInCenter(line);
+}
+function dbgConsole(t){var e=$('dbgConsole');e.textContent+=t+'\n';e.scrollTop=e.scrollHeight;}
+function onDebug(m){
+  if(m.type==='hello')return;
+  if(m.type==='started'){$('dbgState').textContent='运行中';dbgConsole('调试启动 · 已应用 '+m.breakpoints.length+' 个断点');return;}
+  if(m.type==='paused'){
+    $('dbgState').textContent='已暂停 · 第 '+m.line+' 行 ('+m.reason+')';
+    $('dbgFrames').textContent=m.frames.map(function(f,i){return (i===0?'▸ ':'  ')+f.fn+'  '+short(f.url||'')+':'+f.line;}).join('\n')||'(无)';
+    $('dbgVars').textContent=m.vars.map(function(v){return v.name+' = '+v.value;}).join('\n')||'(无局部变量)';
+    dbgConsole('暂停于第 '+m.line+' 行 · '+m.reason);
+    showCurrentLine(m.line);return;
+  }
+  if(m.type==='resumed'){$('dbgState').textContent='运行中';showCurrentLine(null);return;}
+  if(m.type==='console'){dbgConsole(m.text);return;}
+  if(m.type==='exited'){$('dbgState').textContent='已结束 · 退出码 '+m.code;showCurrentLine(null);return;}
+  if(m.type==='stopped'){$('dbgState').textContent='未启动';showCurrentLine(null);return;}
+}
+
+/* ---- 轻量插件系统 ---- */
+function loadPluginList(){
+  fetch('/api/plugins').then(function(r){return r.json();}).then(function(d){
+    pluginCmds=d.commands;
+    $('pluginDir').textContent='插件目录：'+d.dir+' · 已加载 '+d.plugins.length+' 个';
+    var box=$('pluginList');box.innerHTML='';
+    if(!d.plugins.length){box.innerHTML='<div class="plugin-row">暂无插件，把 .mjs 文件放入上述目录即可安装</div>';return;}
+    d.plugins.forEach(function(p){
+      var el=document.createElement('div');el.className='plugin-row';
+      el.innerHTML='<b>'+escapeHtml(p.name)+'</b> · '+escapeHtml(p.description)+' <span style="color:var(--muted)">('+escapeHtml(p.file)+')</span>';
+      box.appendChild(el);
+      d.commands.filter(function(c){return c.plugin===p.name;}).forEach(function(c){
+        var r=document.createElement('div');r.className='plugin-cmd';r.textContent='▸ '+c.title+'  ['+c.id+']';
+        r.onclick=function(){runPluginCommand(c.id);};box.appendChild(r);
+      });
+    });
+  }).catch(function(){});
+}
+function runPluginCommand(id){
+  return fetch('/api/plugin/command',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:id})})
+    .then(function(r){return r.json();}).then(function(d){toast(d.error||d.result||'已执行');return d.result;});
+}
+function openPalette(mode){
+  paletteMode=mode||'file';
+  $('paletteInput').placeholder=paletteMode==='file'?'按文件名快速打开…':'输入命令名称…';
+  $('palette').classList.add('on');$('paletteInput').value='';renderPalette('');$('paletteInput').focus();
+}
+function paletteItems(q){
+  if(paletteMode==='command'){
+    var all=builtinCommands.concat(pluginCmds.map(function(c){
+      return {title:c.title,run:function(){return runPluginCommand(c.id);}};
+    }));
+    return all.filter(function(c){return (c.title+' '+(c.id||'')).toLowerCase().indexOf(q.toLowerCase())>=0;}).slice(0,40);
+  }
+  return files.filter(function(f){return f.path.toLowerCase().indexOf(q.toLowerCase())>=0;}).slice(0,40);
+}
+function renderPalette(q){
+  pList=paletteItems(q);
+  var box=$('paletteList');box.innerHTML='';pSel=0;
+  pList.forEach(function(item,i){
+    var el=document.createElement('div');el.className='pitem'+(i===0?' sel':'');
+    el.textContent=paletteMode==='command'?item.title:item.path;
+    el.onclick=function(){choosePalette(i);};box.appendChild(el);
+  });
+}
+function choosePalette(i){
+  if(!pList[i])return;
+  $('palette').classList.remove('on');
+  if(paletteMode==='command')Promise.resolve(pList[i].run()).then(function(r){if(r)toast(String(r));});
+  else openFile(pList[i].path);
+}
+function addLine(cls,text,histFlag){
+  var d=document.createElement('div');d.className='msg '+cls+(histFlag?' hist':'');d.textContent=text;
+  $('chat').appendChild(d);$('chat').scrollTop=$('chat').scrollHeight;return d;
+}
+function onAgent(m){
+  if(m.type==='status'){
+    $('stAgent').textContent=m.text;$('stAgent').className=m.text.indexOf('已连接')>=0?'ok':'bad';
+    $('dot').classList.toggle('on',m.text.indexOf('已连接')>=0);return;
+  }
+  if(m.type==='history'){
+    m.items.forEach(function(it){addLine(it.role,it.text,true);});return;
+  }
+  if(m.type==='turn-end'){bubbles.clear();$('chat').scrollTop=$('chat').scrollHeight;return;}
+  if(m.type!=='update')return;
+  if(m.sessionUpdate==='tool_call'){addLine('tool','⚙ '+(m.title||m.kind||'工具调用'));return;}
+  if(m.sessionUpdate==='user_message_chunk')return;
+  var roles={agent_message_chunk:'agent',agent_thought_chunk:'thought'};
+  var role=roles[m.sessionUpdate];if(!role||!m.text)return;
+  var b=bubbles.get(m.messageId);
+  if(!b){b={el:addLine(role,''),text:''};bubbles.set(m.messageId,b);}
+  b.text+=m.text;b.el.textContent=b.text;$('chat').scrollTop=$('chat').scrollHeight;
+}
+async function send(){
+  var el=$('input'),text=el.value.trim();if(!text)return;
+  el.value='';addLine('user',text);
+  var r=await fetch('/api/agent/prompt',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:text})});
+  if(!r.ok)addLine('tool','发送失败：Agent 未就绪');
+}
+require.config({paths:{vs:'/monaco/vs'}});
+require(['vs/editor/editor.main'],function(){
+  editor=monaco.editor.create($('editor'),{theme:'vs-dark',automaticLayout:true,fontSize:13,minimap:{enabled:true},scrollBeyondLastLine:false,tabSize:2,glyphMargin:true});
+  editor.onDidChangeCursorPosition(function(e){$('stPos').textContent='行 '+e.position.lineNumber+', 列 '+e.position.column;});
+  editor.onMouseDown(function(e){
+    var t=e.target.type;
+    if((t===monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN||t===monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS)&&e.target.position)toggleBreakpoint(e.target.position.lineNumber);
+  });
+  editor.addCommand(monaco.KeyMod.CtrlCmd|monaco.KeyCode.KeyS,save);
+  loadTree();
+  setInterval(function(){
+    if(!active||!tabs.has(active))return;
+    var p=active,t=tabs.get(p);
+    fetch('/api/file?path='+encodeURIComponent(p)).then(function(r){return r.json();}).then(function(d){
+      if(typeof d.mtime!=='number'||d.mtime===t.mtime)return;
+      if(t.dirty)toast(short(p)+' 在外部被修改，点「重载」可更新');
+      else{t.model.setValue(d.content);t.mtime=d.mtime;toast(short(p)+' 已同步外部修改');}
+    }).catch(function(){});
+  },2500);
+});
+$('save').onclick=save;$('reloadFile').onclick=reloadFile;$('runFile').onclick=runCurrent;
+$('reloadTree').onclick=loadTree;
+$('newFile').onclick=function(){
+  $('newFileBox').classList.add('on');$('newFilePath').value='';$('newFilePath').focus();
+};
+function createNewFile(){
+  var name=$('newFilePath').value.trim();
+  if(!name){$('newFilePath').focus();return;}
+  fetch('/api/new',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({path:name,type:'file'})})
+    .then(function(r){return r.json();}).then(function(d){
+      if(d.ok){$('newFileBox').classList.remove('on');loadTree();openFile(name);}
+      else toast(d.error||'创建失败');
+    }).catch(function(e){toast('创建失败: '+e.message);});
+}
+$('newFileOk').onclick=createNewFile;
+$('newFileCancel').onclick=function(){$('newFileBox').classList.remove('on');};
+$('newFilePath').onkeydown=function(e){
+  if(e.key==='Enter')createNewFile();
+  if(e.key==='Escape')$('newFileBox').classList.remove('on');
+};
+$('run').onclick=runCmd;$('clearTerm').onclick=function(){$('termout').textContent='';};
+$('gitStatus').onclick=function(){showPane('term');$('cmd').value='git status --short';runCmd();};
+$('cmd').onkeydown=function(e){
+  if(e.key==='Enter')runCmd();
+  if(e.key==='ArrowUp'){e.preventDefault();if(histIdx>0){histIdx--;$('cmd').value=hist[histIdx];}}
+  if(e.key==='ArrowDown'){e.preventDefault();if(histIdx<hist.length-1){histIdx++;$('cmd').value=hist[histIdx];}else{histIdx=hist.length;$('cmd').value='';}}
+};
+document.querySelectorAll('.bottom-tab').forEach(function(e){e.onclick=function(){showPane(e.dataset.pane);};});
+$('doSearch').onclick=doSearch;$('searchInput').onkeydown=function(e){if(e.key==='Enter')doSearch();};
+$('paletteInput').oninput=function(){renderPalette(this.value);};
+$('paletteInput').onkeydown=function(e){
+  if(e.key==='Escape')$('palette').classList.remove('on');
+  if(e.key==='Enter'){e.preventDefault();choosePalette(pSel);}
+  if(e.key==='ArrowDown'){e.preventDefault();pSel=Math.min(pSel+1,pList.length-1);updPal();}
+  if(e.key==='ArrowUp'){e.preventDefault();pSel=Math.max(pSel-1,0);updPal();}
+};
+function updPal(){document.querySelectorAll('.pitem').forEach(function(el,i){el.classList.toggle('sel',i===pSel);});}
+$('send').onclick=send;
+$('input').onkeydown=function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}};
+$('syncHist').onclick=function(){fetch('/api/agent/sync',{method:'POST'});toast('正在同步最近会话');};
+$('clearChat').onclick=function(){$('chat').innerHTML='';bubbles.clear();};
+var builtinCommands=[
+  {id:'ide.save',title:'保存当前文件',run:save},
+  {id:'ide.run',title:'运行当前文件',run:runCurrent},
+  {id:'ide.newFile',title:'新建文件',run:function(){$('newFile').click();}},
+  {id:'ide.search',title:'全局文本搜索',run:function(){showPane('search');$('searchInput').focus();}},
+  {id:'ide.git',title:'Git 状态',run:function(){showPane('term');$('cmd').value='git status --short';runCmd();}},
+  {id:'ide.debug.start',title:'调试：启动当前文件',run:dbgStart},
+  {id:'ide.debug.continue',title:'调试：继续',run:function(){dbgAction('continue');}},
+  {id:'ide.debug.step',title:'调试：单步跳过',run:function(){dbgAction('stepOver');}},
+  {id:'ide.debug.stop',title:'调试：停止',run:dbgStop},
+  {id:'ide.plugins',title:'查看已加载插件',run:function(){showPane('plugins');}},
+  {id:'ide.sync',title:'同步 Agent 会话历史',run:function(){fetch('/api/agent/sync',{method:'POST'});}}
+];
+$('dbgStart').onclick=dbgStart;
+$('dbgContinue').onclick=function(){dbgAction('continue');};
+$('dbgStep').onclick=function(){dbgAction('stepOver');};
+$('dbgInto').onclick=function(){dbgAction('stepInto');};
+$('dbgOut').onclick=function(){dbgAction('stepOut');};
+$('dbgStop').onclick=dbgStop;
+$('dbgClearBp').onclick=function(){breakpoints.clear();renderBreakpointDeco();syncBreakpoints();toast('已清除全部断点');};
+var dbgEs=new EventSource('/api/debug/stream');dbgEs.onmessage=function(e){try{onDebug(JSON.parse(e.data));}catch(err){}};
+document.addEventListener('keydown',function(e){
+  if(e.ctrlKey&&e.shiftKey&&e.key.toLowerCase()==='p'){e.preventDefault();openPalette('command');}
+  else if(e.ctrlKey&&!e.shiftKey&&e.key.toLowerCase()==='p'){e.preventDefault();openPalette('file');}
+  if(e.ctrlKey&&e.shiftKey&&e.key.toLowerCase()==='f'){e.preventDefault();showPane('search');$('searchInput').focus();}
+  if(e.ctrlKey&&e.shiftKey&&e.key.toLowerCase()==='s'){e.preventDefault();save();}
+  if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();runCurrent();}
+  if(e.key==='F5'){e.preventDefault();var s=$('dbgState').textContent;if(s.indexOf('暂停')>=0||s.indexOf('运行中')>=0)dbgAction('continue');else dbgStart();}
+  if(e.key==='F10'){e.preventDefault();dbgAction('stepOver');}
+  if(e.key==='F11'){e.preventDefault();dbgAction(e.shiftKey?'stepOut':'stepInto');}
+},true);
+var es=new EventSource('/api/agent/stream');es.onmessage=function(e){try{onAgent(JSON.parse(e.data));}catch(err){}};
+fetch('/api/state').then(function(r){return r.json();}).then(function(d){
+  if(!d.monaco)toast('Monaco 资源缺失，请重新运行启动脚本');
+});
+fetch('/api/plugins').then(function(r){return r.json();}).then(function(d){pluginCmds=d.commands;}).catch(function(){});
+</script>
+</body>
+</html>
